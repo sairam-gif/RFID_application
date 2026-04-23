@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFID Scanner | Saudi Arabia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwindcss.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gold: {
+                            50: '#FFF9E6',
+                            100: '#FFEFC2',
+                            200: '#FFE299',
+                            300: '#FFD666',
+                            400: '#FFCA33',
+                            500: '#D4AF37',
+                            600: '#B8960F',
+                            700: '#8B7355',
+                            800: '#6B5B3D',
+                            900: '#4A3F2A'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --bg-primary: #0A0A0F;
+            --bg-secondary: #12121A;
+            --bg-card: #1A1A24;
+            --gold: #D4AF37;
+            --gold-light: #FFE299;
+            --text-primary: #FAFAFA;
+            --text-secondary: #A0A0B0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .font-display {
+            font-family: 'Cormorant Garamond', serif;
+        }
+
+        /* Animated gradient background */
+        .bg-gradient-animated {
+            background: linear-gradient(135deg, #0A0A0F 0%, #1A1A24 25%, #0A0A0F 50%, #12121A 75%, #0A0A0F 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        /* Gold glow effects */
+        .glow-gold {
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.15), 0 0 60px rgba(212, 175, 55, 0.05);
+        }
+
+        .glow-gold-intense {
+            box-shadow: 0 0 40px rgba(212, 175, 55, 0.3), 0 0 80px rgba(212, 175, 55, 0.1);
+        }
+
+        /* Text glow */
+        .text-glow {
+            text-shadow: 0 0 30px rgba(212, 175, 55, 0.5);
+        }
+
+        /* Decorative lines */
+        .line-gold {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+        }
+
+        /* Corner decorations */
+        .corner-decoration {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border: 1px solid rgba(212, 175, 55, 0.3);
+        }
+
+        .corner-tl {
+            top: 0;
+            left: 0;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .corner-tr {
+            top: 0;
+            right: 0;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .corner-bl {
+            bottom: 0;
+            left: 0;
+            border-right: none;
+            border-top: none;
+        }
+
+        .corner-br {
+            bottom: 0;
+            right: 0;
+            border-left: none;
+            border-top: none;
+        }
+
+        /* Input styling */
+        input {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            color: var(--text-primary);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--gold);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+            background: rgba(212, 175, 55, 0.05);
+        }
+
+        input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        /* Button styling */
+        .btn-gold {
+            background: linear-gradient(135deg, #D4AF37 0%, #B8960F 100%);
+            color: #0A0A0F;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-gold::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.6s ease;
+        }
+
+        .btn-gold:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(212, 175, 55, 0.4);
+        }
+
+        .btn-gold:hover::before {
+            left: 100%;
+        }
+
+        .btn-gold:active {
+            transform: translateY(0);
+        }
+
+        /* Status indicator */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-connected {
+            background: #4ADE80;
+            box-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+        }
+
+        .status-disconnected {
+            background: #6B7280;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        /* Data cards */
+        .data-card {
+            background: linear-gradient(145deg, rgba(26, 26, 36, 0.8), rgba(18, 18, 26, 0.9));
+            border: 1px solid rgba(212, 175, 55, 0.15);
+            backdrop-filter: blur(10px);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .data-card:hover {
+            border-color: rgba(212, 175, 55, 0.4);
+            transform: translateX(5px);
+            box-shadow: -10px 0 40px rgba(212, 175, 55, 0.1);
+        }
+
+        /* Scroll styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--gold);
+            border-radius: 3px;
+        }
+
+        /* Floating animation */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .floating {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        /* Entry animation */
+        .fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+            opacity: 0;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stagger-1 { animation-delay: 0.1s; }
+        .stagger-2 { animation-delay: 0.2s; }
+        .stagger-3 { animation-delay: 0.3s; }
+        .stagger-4 { animation-delay: 0.4s; }
+    </style>
+</head>
+<body class="bg-gradient-animated">
+    <!-- Background geometric pattern -->
+    <div class="fixed inset-0 opacity-5">
+        <svg class="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+                <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+                    <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#D4AF37" stroke-width="0.5"/>
+                </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)"/>
+        </svg>
+    </div>
+
+    <div class="relative min-h-screen p-6 md:p-12">
+        <!-- Corner decorations -->
+        <div class="corner-decoration corner-tl"></div>
+        <div class="corner-decoration corner-tr"></div>
+        <div class="corner-decoration corner-bl"></div>
+        <div class="corner-decoration corner-br"></div>
+
+        <!-- Header -->
+        <header class="text-center mb-16 fade-in stagger-1">
+            <div class="inline-flex items-center gap-4 mb-6">
+                <div class="w-16 h-px bg-gradient-to-r from-transparent via-gold-500 to-transparent"></div>
+                <svg class="w-8 h-8 text-gold-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+                    <path d="M12 6v6l4 2"/>
+                </svg>
+                <div class="w-16 h-px bg-gradient-to-r from-transparent via-gold-500 to-transparent"></div>
+            </div>
+            <h1 class="font-display text-5xl md:text-7xl font-bold tracking-tight mb-4">
+                <span class="text-gold-500 text-glow">RFID</span>
+                <span class="text-white">Scanner</span>
+            </h1>
+            <p class="text-gold-500/70 text-sm tracking-[0.3em] uppercase">Real-time tracking system</p>
+        </header>
+
+        <!-- Main Content -->
+        <div class="max-w-2xl mx-auto">
+            <!-- Connection Panel -->
+            <div class="data-card rounded-2xl p-8 mb-8 glow-gold fade-in stagger-2">
+                <h2 class="font-display text-2xl text-gold-500 mb-6 tracking-wide">Connection</h2>
+
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-xs text-gold-500/60 uppercase tracking-wider mb-2">Scanner IP Address</label>
+                        <input type="text" id="ip" value="192.168.1.101"
+                            class="w-full px-5 py-4 rounded-xl text-lg">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gold-500/60 uppercase tracking-wider mb-2">Port</label>
+                        <input type="text" id="port" value="5000"
+                            class="w-full px-5 py-4 rounded-xl text-lg">
+                    </div>
+
+                    <button onclick="connect()" class="btn-gold w-full py-4 rounded-xl text-sm tracking-widest">
+                        Connect Scanner
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status Panel -->
+            <div class="data-card rounded-2xl p-8 mb-8 fade-in stagger-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="font-display text-2xl text-white mb-1">Status</h2>
+                        <p class="text-gold-500/50 text-sm">Connection state</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div id="statusDot" class="status-dot status-disconnected"></div>
+                        <span id="statusText" class="text-xl font-semibold text-gold-500">Disconnected</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Panel -->
+            <div class="data-card rounded-2xl p-8 glow-gold-intense fade-in stagger-4">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 class="font-display text-2xl text-gold-500 mb-1">Scanner Data</h2>
+                        <p class="text-gold-500/50 text-sm">Incoming RFID reads</p>
+                    </div>
+                    <div id="dataCount" class="text-3xl font-display text-gold-500/30">0</div>
+                </div>
+
+                <div id="dataContainer"
+                    class="h-64 overflow-y-auto rounded-xl bg-black/30 p-4 font-mono text-sm space-y-3">
+                    <div class="text-gold-500/40 text-center py-8">
+                        <svg class="w-12 h-12 mx-auto mb-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                        </svg>
+                        Waiting for scanner data...
+                    </div>
+                </div>
+
+                <!-- Raw Data Toggle -->
+                <div class="mt-4">
+                    <button onclick="toggleRawData()" class="text-gold-500/50 text-sm hover:text-gold-500 transition-colors flex items-center gap-2">
+                        <svg id="rawArrow" class="w-4 h-4 transform rotate-90 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 5l7 7-7 7"/>
+                        </svg>
+                        View Raw JSON
+                    </button>
+                    <pre id="rawDataContainer" class="hidden mt-3 p-4 bg-black/50 rounded-xl text-xs text-gold-500/70 overflow-x-auto"></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center mt-16 fade-in" style="animation-delay: 0.5s;">
+            <div class="line-gold w-32 mx-auto mb-4"></div>
+            <p class="text-gold-500/30 text-xs tracking-widest uppercase">Saudi Arabia RFID Tracking System</p>
+        </footer>
+    </div>
+
+    <script>
+        let ws;
+        let dataCount = 0;
+
+        function connect() {
+            const ip = document.getElementById("ip").value;
+            const port = document.getElementById("port").value;
+
+            // Update UI to connecting state
+            const statusDot = document.getElementById("statusDot");
+            const statusText = document.getElementById("statusText");
+            statusDot.className = "status-dot status-disconnected";
+            statusDot.style.animationDuration = "0.5s";
+            statusText.textContent = "Connecting...";
+            statusText.className = "text-xl font-semibold text-gold-500/70";
+
+            ws = new WebSocket(`ws://${location.host}/ws/scanner/test`);
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({
+                    action: "connect",
+                    ip_address: ip,
+                    port: parseInt(port)
+                }));
+
+                statusDot.className = "status-dot status-connected";
+                statusDot.style.animationDuration = "2s";
+                statusText.textContent = "Connected";
+                statusText.className = "text-xl font-semibold text-green-400";
+            };
+
+            ws.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+
+                if (msg.type === "rfid_read") {
+                    dataCount++;
+                    document.getElementById("dataCount").textContent = dataCount;
+
+                    const container = document.getElementById("dataContainer");
+
+                    // Remove placeholder if present
+                    const placeholder = container.querySelector('.text-gold-500\\/40');
+                    if (placeholder) placeholder.remove();
+
+                    // Create data card HTML
+                    const time = new Date().toLocaleTimeString();
+                    const dataHtml = `
+                        <div class="data-card rounded-lg p-4 border-l-2 border-gold-500" style="animation: fadeIn 0.5s ease-out;">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-gold-500 font-semibold">${msg.scanner_id || 'Scanner'}</span>
+                                <span class="text-gold-500/40 text-xs">${time}</span>
+                            </div>
+                            <div class="text-gold-500/60 text-xs mb-1">IP: ${msg.ip_address}</div>
+                            <div class="text-white font-mono text-sm bg-black/30 p-2 rounded">
+                                ${JSON.stringify(msg.data)}
+                            </div>
+                        </div>
+                    `;
+
+                    container.innerHTML = dataHtml + container.innerHTML;
+
+                    // Update raw data
+                    const rawContainer = document.getElementById("rawDataContainer");
+                    rawContainer.textContent = JSON.stringify(msg, null, 2);
+                }
+
+                if (msg.type === "error") {
+                    alert("Connection Error: " + msg.message);
+                    statusDot.className = "status-dot status-disconnected";
+                    statusText.textContent = "Error";
+                    statusText.className = "text-xl font-semibold text-red-400";
+                }
+            };
+
+            ws.onclose = () => {
+                statusDot.className = "status-dot status-disconnected";
+                statusText.textContent = "Disconnected";
+                statusText.className = "text-xl font-semibold text-gold-500/50";
+            };
+        }
+
+        function toggleRawData() {
+            const rawContainer = document.getElementById("rawDataContainer");
+            const arrow = document.getElementById("rawArrow");
+            rawContainer.classList.toggle("hidden");
+            arrow.classList.toggle("rotate-90");
+        }
+    </script>
+</body>
+</html>
