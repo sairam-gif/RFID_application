@@ -302,7 +302,7 @@
                 <div class="w-16 h-px bg-gradient-to-r from-transparent via-gold-500 to-transparent"></div>
             </div>
             <h1 class="font-display text-5xl md:text-7xl font-bold tracking-tight mb-4">
-                <span class="text-gold-500 text-glow">RFID</span>
+                <span class="text-gold-500 text-glow">IP</span>
                 <span class="text-white">Scanner</span>
             </h1>
             <p class="text-gold-500/70 text-sm tracking-[0.3em] uppercase">Real-time tracking system</p>
@@ -312,23 +312,46 @@
         <div class="max-w-2xl mx-auto">
             <!-- Connection Panel -->
             <div class="data-card rounded-2xl p-8 mb-8 glow-gold fade-in stagger-2">
-                <h2 class="font-display text-2xl text-gold-500 mb-6 tracking-wide">Connection</h2>
+                <h2 class="font-display text-2xl text-gold-500 mb-6 tracking-wide">Connection Settings</h2>
 
                 <div class="space-y-5">
-                    <div>
-                        <label class="block text-xs text-gold-500/60 uppercase tracking-wider mb-2">Scanner IP Address</label>
-                        <input type="text" id="ip" value="192.168.1.101"
-                            class="w-full px-5 py-4 rounded-xl text-lg">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gold-500/60 uppercase tracking-wider mb-2">Protocol</label>
+                            <select id="protocol" onchange="toggleProtocolFields()"
+                                class="w-full px-5 py-4 rounded-xl text-lg bg-[#1A1A24] border border-gold-500/20 text-white focus:outline-none focus:border-gold-500">
+                                <option value="tcp">TCP Socket</option>
+                                <option value="http">HTTP Get</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gold-500/60 uppercase tracking-wider mb-2">IP Address</label>
+                            <input type="text" id="ip" value="192.168.1.101"
+                                class="w-full px-5 py-4 rounded-xl text-lg">
+                        </div>
                     </div>
 
-                    <div>
-                        <label class="block text-xs text-gold-500/60 uppercase tracking-wider mb-2">Port</label>
-                        <input type="text" id="port" value="5000"
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gold-500/60 uppercase tracking-wider mb-2">Port</label>
+                            <input type="text" id="port" value="5000"
+                                class="w-full px-5 py-4 rounded-xl text-lg">
+                        </div>
+                        <div id="httpIntervalContainer" class="hidden">
+                            <label class="block text-xs text-gold-500/60 uppercase tracking-wider mb-2">Interval (s)</label>
+                            <input type="number" id="interval" value="5" min="1"
+                                class="w-full px-5 py-4 rounded-xl text-lg">
+                        </div>
+                    </div>
+
+                    <div id="httpPathContainer" class="hidden">
+                        <label class="block text-xs text-gold-500/60 uppercase tracking-wider mb-2">HTTP Path</label>
+                        <input type="text" id="path" value="/"
                             class="w-full px-5 py-4 rounded-xl text-lg">
                     </div>
 
                     <button onclick="connect()" class="btn-gold w-full py-4 rounded-xl text-sm tracking-widest">
-                        Connect Scanner
+                        Start Fetching
                     </button>
                 </div>
             </div>
@@ -337,8 +360,8 @@
             <div class="data-card rounded-2xl p-8 mb-8 fade-in stagger-3">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h2 class="font-display text-2xl text-white mb-1">Status</h2>
-                        <p class="text-gold-500/50 text-sm">Connection state</p>
+                        <h2 class="font-display text-2xl text-white mb-1">System Status</h2>
+                        <p id="protocolDisplay" class="text-gold-500/50 text-sm">TCP Mode</p>
                     </div>
                     <div class="flex items-center gap-3">
                         <div id="statusDot" class="status-dot status-disconnected"></div>
@@ -351,19 +374,19 @@
             <div class="data-card rounded-2xl p-8 glow-gold-intense fade-in stagger-4">
                 <div class="flex items-center justify-between mb-6">
                     <div>
-                        <h2 class="font-display text-2xl text-gold-500 mb-1">Scanner Data</h2>
-                        <p class="text-gold-500/50 text-sm">Incoming RFID reads</p>
+                        <h2 class="font-display text-2xl text-gold-500 mb-1">Device Data Stream</h2>
+                        <p class="text-gold-500/50 text-sm">Live incoming data</p>
                     </div>
                     <div id="dataCount" class="text-3xl font-display text-gold-500/30">0</div>
                 </div>
 
                 <div id="dataContainer"
-                    class="h-64 overflow-y-auto rounded-xl bg-black/30 p-4 font-mono text-sm space-y-3">
+                    class="h-80 overflow-y-auto rounded-xl bg-black/30 p-4 font-mono text-sm space-y-3">
                     <div class="text-gold-500/40 text-center py-8">
                         <svg class="w-12 h-12 mx-auto mb-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                         </svg>
-                        Waiting for scanner data...
+                        Waiting for device connection...
                     </div>
                 </div>
 
@@ -373,7 +396,7 @@
                         <svg id="rawArrow" class="w-4 h-4 transform rotate-90 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 5l7 7-7 7"/>
                         </svg>
-                        View Raw JSON
+                        View Last Raw Response
                     </button>
                     <pre id="rawDataContainer" class="hidden mt-3 p-4 bg-black/50 rounded-xl text-xs text-gold-500/70 overflow-x-auto"></pre>
                 </div>
@@ -383,7 +406,7 @@
         <!-- Footer -->
         <footer class="text-center mt-16 fade-in" style="animation-delay: 0.5s;">
             <div class="line-gold w-32 mx-auto mb-4"></div>
-            <p class="text-gold-500/30 text-xs tracking-widest uppercase">Saudi Arabia RFID Tracking System</p>
+            <p class="text-gold-500/30 text-xs tracking-widest uppercase">Multi-Protocol Data Acquisition System</p>
         </footer>
     </div>
 
@@ -391,9 +414,37 @@
         let ws;
         let dataCount = 0;
 
+        function toggleProtocolFields() {
+            const protocol = document.getElementById("protocol").value;
+            const pathContainer = document.getElementById("httpPathContainer");
+            const intervalContainer = document.getElementById("httpIntervalContainer");
+            const portInput = document.getElementById("port");
+            const protocolDisplay = document.getElementById("protocolDisplay");
+
+            if (protocol === "http") {
+                pathContainer.classList.remove("hidden");
+                intervalContainer.classList.remove("hidden");
+                if (portInput.value === "5000") portInput.value = "80";
+                protocolDisplay.textContent = "HTTP Polling Mode";
+            } else {
+                pathContainer.classList.add("hidden");
+                intervalContainer.classList.add("hidden");
+                if (portInput.value === "80") portInput.value = "5000";
+                protocolDisplay.textContent = "TCP Socket Mode";
+            }
+        }
+
         function connect() {
+            const protocol = document.getElementById("protocol").value;
             const ip = document.getElementById("ip").value;
             const port = document.getElementById("port").value;
+            const path = document.getElementById("path").value;
+            const interval = document.getElementById("interval").value;
+
+            // Close existing connection if any
+            if (ws) {
+                ws.close();
+            }
 
             // Update UI to connecting state
             const statusDot = document.getElementById("statusDot");
@@ -403,25 +454,30 @@
             statusText.textContent = "Connecting...";
             statusText.className = "text-xl font-semibold text-gold-500/70";
 
-            ws = new WebSocket(`ws://${location.host}/ws/scanner/test`);
+            ws = new WebSocket(`ws://${location.host}/ws/device/client_1`);
 
             ws.onopen = () => {
                 ws.send(JSON.stringify({
                     action: "connect",
+                    protocol: protocol,
                     ip_address: ip,
-                    port: parseInt(port)
+                    port: parseInt(port),
+                    path: path,
+                    interval: parseInt(interval)
                 }));
-
-                statusDot.className = "status-dot status-connected";
-                statusDot.style.animationDuration = "2s";
-                statusText.textContent = "Connected";
-                statusText.className = "text-xl font-semibold text-green-400";
             };
 
             ws.onmessage = (e) => {
                 const msg = JSON.parse(e.data);
 
-                if (msg.type === "rfid_read") {
+                if (msg.type === "connected") {
+                    statusDot.className = "status-dot status-connected";
+                    statusDot.style.animationDuration = "2s";
+                    statusText.textContent = "Connected";
+                    statusText.className = "text-xl font-semibold text-green-400";
+                }
+
+                if (msg.type === "data_received") {
                     dataCount++;
                     document.getElementById("dataCount").textContent = dataCount;
 
@@ -433,15 +489,17 @@
 
                     // Create data card HTML
                     const time = new Date().toLocaleTimeString();
+                    const protocolLabel = msg.protocol.toUpperCase();
+                    
                     const dataHtml = `
                         <div class="data-card rounded-lg p-4 border-l-2 border-gold-500" style="animation: fadeIn 0.5s ease-out;">
                             <div class="flex justify-between items-start mb-2">
-                                <span class="text-gold-500 font-semibold">${msg.scanner_id || 'Scanner'}</span>
+                                <span class="text-gold-500 font-semibold">${protocolLabel} Device</span>
                                 <span class="text-gold-500/40 text-xs">${time}</span>
                             </div>
-                            <div class="text-gold-500/60 text-xs mb-1">IP: ${msg.ip_address}</div>
-                            <div class="text-white font-mono text-sm bg-black/30 p-2 rounded">
-                                ${JSON.stringify(msg.data)}
+                            <div class="text-gold-500/60 text-xs mb-1">Source: ${msg.ip_address}</div>
+                            <div class="text-white font-mono text-sm bg-black/30 p-2 rounded break-all">
+                                ${JSON.stringify(msg.data, null, 2)}
                             </div>
                         </div>
                     `;
@@ -451,13 +509,25 @@
                     // Update raw data
                     const rawContainer = document.getElementById("rawDataContainer");
                     rawContainer.textContent = JSON.stringify(msg, null, 2);
+                    
+                    // Keep container from growing too large
+                    if (container.children.length > 50) {
+                        container.removeChild(container.lastChild);
+                    }
                 }
 
                 if (msg.type === "error") {
-                    alert("Connection Error: " + msg.message);
+                    // console.error("Error:", msg.message);
+                    // Don't alert for every poll error, maybe just log to UI
+                    const container = document.getElementById("dataContainer");
+                    const errorHtml = `<div class="text-red-400/50 text-xs py-1">Error: ${msg.message}</div>`;
+                    container.innerHTML = errorHtml + container.innerHTML;
+                }
+
+                if (msg.type === "disconnected") {
                     statusDot.className = "status-dot status-disconnected";
-                    statusText.textContent = "Error";
-                    statusText.className = "text-xl font-semibold text-red-400";
+                    statusText.textContent = "Disconnected";
+                    statusText.className = "text-xl font-semibold text-gold-500/50";
                 }
             };
 

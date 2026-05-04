@@ -5,6 +5,7 @@ import json
 import socket
 import asyncio
 import uvicorn
+import httpx
 
 
 app = FastAPI()
@@ -18,20 +19,19 @@ app.add_middleware(
 )
 
 
-scanner_connections = {}
+device_connections = {}
 
 
-class RFIDScanner:
-    def __init__(self, websocket: WebSocket, scanner_id: str):
+class DeviceCommunicator:
+    def __init__(self, websocket: WebSocket, client_id: str):
         self.websocket = websocket
-        self.scanner_id = scanner_id
+        self.client_id = client_id
         self.running = False
 
-    async def connect_to_scanner(self, ip_address: str, port: int = 5000):
+    async def connect_tcp(self, ip_address: str, port: int = 5000):
         """
-        Connect to RFID scanner (FX9600) via TCP.
-        - Auto‑reconnects if the scanner closes the connection.
-        - Sends JSON events to WebSocket.
+        Connect to a device via TCP.
+        - Auto-reconnects if the connection is lost.
         """
         self.running = True
         while self.running:
@@ -41,7 +41,8 @@ class RFIDScanner:
                 await self.websocket.send_json(
                     {
                         "type": "connected",
-                        "scanner_id": self.scanner_id,
+                        "protocol": "tcp",
+                        "client_id": self.client_id,
                         "ip_address": ip_address,
                         "port": port,
                     }
@@ -49,14 +50,13 @@ class RFIDScanner:
 
                 while self.running:
                     try:
-                        data = await reader.read(1024)
+                        data = await reader.read(4096)  # Increased buffer size
                         if not data:
-                            # FX9600 closed the TCP connection
                             await self.websocket.send_json(
                                 {
                                     "type": "disconnected",
-                                    "message": "Scanner closed connection",
-                                    "scanner_id": self.scanner_id,
+                                    "message": "Device closed TCP connection",
+                                    "client_id": self.client_id,
                                 }
                             )
                             break
@@ -65,90 +65,133 @@ class RFIDScanner:
                         if not raw:
                             continue
 
-                        parsed = self.parse_data(raw)
-                        await self.websocket.send_json(
-                            {
-                                "type": "rfid_read",
-                                "data": parsed,
-                                "scanner_id": self.scanner_id,
-                                "ip_address": ip_address,
-                            }
-                        )
+                        # Handle multiple lines if they come in one chunk
+                        lines = raw.splitlines()
+                        for line in lines:
+                            if not line.strip(): continue
+                            parsed = self.parse_data(line.strip())
+                            await self.websocket.send_json(
+                                {
+                                    "type": "data_received",
+                                    "data": parsed,
+                                    "client_id": self.client_id,
+                                    "ip_address": ip_address,
+                                    "protocol": "tcp"
+                                }
+                            )
                     except Exception as e:
                         await self.websocket.send_json(
                             {
                                 "type": "error",
-                                "message": f"Read error: {str(e)}",
-                                "scanner_id": self.scanner_id,
+                                "message": f"TCP Read error: {str(e)}",
+                                "client_id": self.client_id,
                             }
                         )
-                        break  # exit inner loop, then reconnect
+                        break
 
-                # Close TCP socket and reconnect after delay
                 writer.close()
                 await writer.wait_closed()
-                await asyncio.sleep(3)
+                if self.running:
+                    await asyncio.sleep(3)
 
             except Exception as e:
                 await self.websocket.send_json(
                     {
                         "type": "error",
-                        "message": f"Connect error: {str(e)}",
-                        "scanner_id": self.scanner_id,
+                        "message": f"TCP Connect error: {str(e)}",
+                        "client_id": self.client_id,
                     }
                 )
                 if not self.running:
                     break
                 await asyncio.sleep(3)
 
+    async def fetch_http(self, ip_address: str, port: int = 80, path: str = "/", interval: int = 5):
+        """
+        Fetch data from a device via HTTP GET polling.
+        """
+        self.running = True
+        url = f"http://{ip_address}:{port}{path}"
+        
+        async with httpx.AsyncClient() as client:
+            await self.websocket.send_json(
+                {
+                    "type": "connected",
+                    "protocol": "http",
+                    "client_id": self.client_id,
+                    "url": url,
+                    "interval": interval
+                }
+            )
+            
+            while self.running:
+                try:
+                    response = await client.get(url, timeout=10.0)
+                    raw = response.text.strip()
+                    
+                    if raw:
+                        parsed = self.parse_data(raw)
+                        await self.websocket.send_json(
+                            {
+                                "type": "data_received",
+                                "data": parsed,
+                                "client_id": self.client_id,
+                                "ip_address": ip_address,
+                                "protocol": "http",
+                                "status_code": response.status_code
+                            }
+                        )
+                except Exception as e:
+                    await self.websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": f"HTTP Fetch error: {str(e)}",
+                            "client_id": self.client_id,
+                        }
+                    )
+                
+                await asyncio.sleep(interval)
+
     def parse_data(self, raw):
         """
-        Try to parse raw line from FX9600 in several formats:
-        - JSON
-        - CSV (e.g., tag,vehicle)
-        - key=value (e.g., rfid=12345)
-        - fallback: just raw text.
+        Generic parser for various data formats.
         """
-        # JSON
+        # 1. Try JSON
         try:
             return json.loads(raw)
         except Exception:
             pass
 
-        # CSV: assume tag,vehicle,... as first two fields
+        # 2. Try CSV/Comma-separated
         if "," in raw:
-            parts = raw.split(",")
-            return {
-                "rfid": parts[0].strip(),
-                "vehicle": parts[1].strip() if len(parts) > 1 else None,
-            }
+            parts = [p.strip() for p in raw.split(",")]
+            if len(parts) > 1:
+                return {f"field_{i+1}": p for i, p in enumerate(parts)}
 
-        # key=value style
+        # 3. Try key=value style
         if "=" in raw:
             data = {}
-            for part in raw.split():
+            # Split by whitespace or semicolons
+            parts = raw.replace(";", " ").split()
+            for part in parts:
                 if "=" in part:
                     try:
                         k, v = part.split("=", 1)
                         data[k.strip()] = v.strip()
                     except Exception:
                         pass
-            return data
+            if data:
+                return data
 
-        # fallback
+        # 4. Fallback to raw text
         return {"raw_data": raw}
 
 
-@app.websocket("/ws/scanner/{client_id}")
+@app.websocket("/ws/device/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    """
-    WebSocket endpoint for one scanner client.
-    - Receives "connect" and "disconnect" commands from client.
-    - Starts TCP connection to FX9600.
-    """
     await websocket.accept()
-    scanner = RFIDScanner(websocket, client_id)
-    scanner_connections[client_id] = scanner
+    device = DeviceCommunicator(websocket, client_id)
+    device_connections[client_id] = device
 
     try:
         while True:
@@ -156,54 +199,50 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             data = json.loads(message)
 
             if data.get("action") == "connect":
+                protocol = data.get("protocol", "tcp").lower()
                 ip_address = data.get("ip_address")
-                port = data.get("port", 5000)
+                port = int(data.get("port", 5000 if protocol == "tcp" else 80))
 
-                if scanner.running:
-                    await websocket.send_json(
-                        {
-                            "type": "error",
-                            "message": "Already connected",
-                            "scanner_id": client_id,
-                        }
-                    )
-                else:
+                if device.running:
+                    device.running = False
+                    await asyncio.sleep(0.5) # Give it a moment to stop
+
+                if protocol == "tcp":
                     asyncio.create_task(
-                        scanner.connect_to_scanner(ip_address, port)
+                        device.connect_tcp(ip_address, port)
+                    )
+                elif protocol == "http":
+                    path = data.get("path", "/")
+                    interval = int(data.get("interval", 5))
+                    asyncio.create_task(
+                        device.fetch_http(ip_address, port, path, interval)
                     )
 
             elif data.get("action") == "disconnect":
-                scanner.running = False
+                device.running = False
                 await websocket.send_json(
                     {
                         "type": "disconnected",
-                        "scanner_id": client_id,
+                        "client_id": client_id,
                     }
                 )
 
     except WebSocketDisconnect:
-        scanner.running = False
-        scanner_connections.pop(client_id, None)
+        device.running = False
+        device_connections.pop(client_id, None)
 
 
 @app.get("/")
 async def get_root():
-    """
-    Simple HTML page that shows how to use the WebSocket (for demo).
-    """
     return HTMLResponse(HTML_CONTENT)
 
 
-# Load HTML content from file
 with open("index.html", "r") as f:
     HTML_CONTENT = f.read()
 
 
 @app.get("/api/my-ip")
 async def get_my_ip():
-    """
-    Return this machine’s local IP (for client troubleshooting).
-    """
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -215,5 +254,4 @@ async def get_my_ip():
 
 
 if __name__ == "__main__":
-    # Run FastAPI server on all interfaces, port 5000
     uvicorn.run(app, host="0.0.0.0", port=5000)
