@@ -1,3 +1,5 @@
 /refrenceImages
 .playwright-mcp
 /node_modules
+/fake_http_device.py
+/test.py

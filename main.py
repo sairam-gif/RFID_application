@@ -34,6 +34,21 @@ class DeviceCommunicator:
         - Auto-reconnects if the connection is lost.
         """
         self.running = True
+        
+        # Initial connection test
+        try:
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(ip_address, port), timeout=5.0)
+            writer.close()
+            await writer.wait_closed()
+        except Exception as e:
+            await self.websocket.send_json({
+                "type": "error",
+                "message": f"Device not reachable (TCP) at {ip_address}:{port}. Check network or firewall.",
+                "client_id": self.client_id
+            })
+            self.running = False
+            return
+
         while self.running:
             try:
                 reader, writer = await asyncio.open_connection(ip_address, port)
@@ -50,7 +65,7 @@ class DeviceCommunicator:
 
                 while self.running:
                     try:
-                        data = await reader.read(4096)  # Increased buffer size
+                        data = await reader.read(4096)
                         if not data:
                             await self.websocket.send_json(
                                 {
@@ -65,7 +80,6 @@ class DeviceCommunicator:
                         if not raw:
                             continue
 
-                        # Handle multiple lines if they come in one chunk
                         lines = raw.splitlines()
                         for line in lines:
                             if not line.strip(): continue
@@ -98,7 +112,7 @@ class DeviceCommunicator:
                 await self.websocket.send_json(
                     {
                         "type": "error",
-                        "message": f"TCP Connect error: {str(e)}",
+                        "message": f"Cannot reach device. Check IP/subnet/firewall. Error: {str(e)}",
                         "client_id": self.client_id,
                     }
                 )
@@ -114,6 +128,18 @@ class DeviceCommunicator:
         url = f"http://{ip_address}:{port}{path}"
         
         async with httpx.AsyncClient() as client:
+            # Initial connection test
+            try:
+                await client.get(url, timeout=5.0)
+            except Exception as e:
+                await self.websocket.send_json({
+                    "type": "error",
+                    "message": f"Device not reachable (HTTP) at {url}. Error: {str(e)}",
+                    "client_id": self.client_id
+                })
+                self.running = False
+                return
+
             await self.websocket.send_json(
                 {
                     "type": "connected",
@@ -145,7 +171,7 @@ class DeviceCommunicator:
                     await self.websocket.send_json(
                         {
                             "type": "error",
-                            "message": f"HTTP Fetch error: {str(e)}",
+                            "message": f"Cannot reach device. Check URL/Network. Error: {str(e)}",
                             "client_id": self.client_id,
                         }
                     )
@@ -201,11 +227,31 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             if data.get("action") == "connect":
                 protocol = data.get("protocol", "tcp").lower()
                 ip_address = data.get("ip_address")
-                port = int(data.get("port", 5000 if protocol == "tcp" else 80))
+                
+                # Port validation
+                try:
+                    port = int(data.get("port", 5000 if protocol == "tcp" else 80))
+                    if port < 1 or port > 65535:
+                        raise ValueError()
+                except (ValueError, TypeError):
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Invalid port number (must be 1-65535)",
+                        "client_id": client_id
+                    })
+                    continue
 
                 if device.running:
                     device.running = False
                     await asyncio.sleep(0.5) # Give it a moment to stop
+
+                await websocket.send_json({
+                    "type": "connecting",
+                    "client_id": client_id,
+                    "protocol": protocol,
+                    "ip": ip_address,
+                    "port": port
+                })
 
                 if protocol == "tcp":
                     asyncio.create_task(
@@ -254,4 +300,4 @@ async def get_my_ip():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=5001)

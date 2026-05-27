@@ -350,9 +350,14 @@
                             class="w-full px-5 py-4 rounded-xl text-lg">
                     </div>
 
-                    <button onclick="connect()" class="btn-gold w-full py-4 rounded-xl text-sm tracking-widest">
-                        Start Fetching
-                    </button>
+                    <div class="flex gap-4">
+                        <button id="startBtn" onclick="connect()" class="btn-gold flex-1 py-4 rounded-xl text-sm tracking-widest">
+                            Start Fetching
+                        </button>
+                        <button id="stopBtn" onclick="stopFetching()" class="hidden bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500/20 flex-1 py-4 rounded-xl text-sm tracking-widest transition-all">
+                            Stop Fetching
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -440,10 +445,12 @@
             const port = document.getElementById("port").value;
             const path = document.getElementById("path").value;
             const interval = document.getElementById("interval").value;
+            const startBtn = document.getElementById("startBtn");
+            const stopBtn = document.getElementById("stopBtn");
 
             // Close existing connection if any
-            if (ws) {
-                ws.close();
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: "disconnect" }));
             }
 
             // Update UI to connecting state
@@ -454,7 +461,20 @@
             statusText.textContent = "Connecting...";
             statusText.className = "text-xl font-semibold text-gold-500/70";
 
-            ws = new WebSocket(`ws://${location.host}/ws/device/client_1`);
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                ws = new WebSocket(`ws://${location.host}/ws/device/client_1`);
+            } else {
+                // If already open, just send the connect action
+                ws.send(JSON.stringify({
+                    action: "connect",
+                    protocol: protocol,
+                    ip_address: ip,
+                    port: parseInt(port),
+                    path: path,
+                    interval: parseInt(interval)
+                }));
+                return;
+            }
 
             ws.onopen = () => {
                 ws.send(JSON.stringify({
@@ -470,11 +490,21 @@
             ws.onmessage = (e) => {
                 const msg = JSON.parse(e.data);
 
+                if (msg.type === "connecting") {
+                    statusDot.className = "status-dot status-disconnected";
+                    statusDot.style.animationDuration = "0.5s";
+                    statusText.textContent = "Connecting...";
+                    statusText.className = "text-xl font-semibold text-gold-500/70";
+                }
+
                 if (msg.type === "connected") {
                     statusDot.className = "status-dot status-connected";
                     statusDot.style.animationDuration = "2s";
                     statusText.textContent = "Connected";
                     statusText.className = "text-xl font-semibold text-green-400";
+                    
+                    startBtn.classList.add("hidden");
+                    stopBtn.classList.remove("hidden");
                 }
 
                 if (msg.type === "data_received") {
@@ -528,6 +558,9 @@
                     statusDot.className = "status-dot status-disconnected";
                     statusText.textContent = "Disconnected";
                     statusText.className = "text-xl font-semibold text-gold-500/50";
+                    
+                    startBtn.classList.remove("hidden");
+                    stopBtn.classList.add("hidden");
                 }
             };
 
@@ -535,7 +568,16 @@
                 statusDot.className = "status-dot status-disconnected";
                 statusText.textContent = "Disconnected";
                 statusText.className = "text-xl font-semibold text-gold-500/50";
+                
+                startBtn.classList.remove("hidden");
+                stopBtn.classList.add("hidden");
             };
+        }
+
+        function stopFetching() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: "disconnect" }));
+            }
         }
 
         function toggleRawData() {
